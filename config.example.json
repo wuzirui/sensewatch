@@ -1,0 +1,24 @@
+{
+  "subscription": "YOUR_SUBSCRIPTION_UUID",
+  "resource_group": "default",
+  "workspace_zone": "cn-sh-01z",
+  "cluster_zone": "cn-sh-01e",
+
+  "workspaces": [
+    "your-workspace-name"
+  ],
+
+  "clusters": {
+    "your-cluster-name": {
+      "device": "N6lS",
+      "vram_gb": 80,
+      "nodes": 8
+    }
+  },
+
+  "workspace_resource_ids": {
+    "your-workspace-name": "WORKSPACE_RESOURCE_UUID"
+  },
+
+  "my_usernames": ["YOUR_IAM_USERNAME"]
+}

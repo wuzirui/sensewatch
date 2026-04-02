@@ -54,11 +54,20 @@ class SenseWatchApp(rumps.App):
 
     @rumps.events.before_start
     def _setup(self):
+        if not config.load_user_config():
+            rumps.alert(
+                title="SenseWatch Setup",
+                message=config.config_missing_message(),
+                ok="Quit",
+            )
+            rumps.quit_application()
+            return
+
         if not self.auth.load_credentials():
             self._show_setup_dialog()
             return
 
-        self._build_menu_now()  # Initial "Loading..." menu
+        self._build_menu_now()
         self._start_polling()
 
     def _show_setup_dialog(self):

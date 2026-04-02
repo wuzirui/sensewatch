@@ -51,6 +51,35 @@ security find-generic-password -s sensecore_access_key_id -a $USER -w
 
 Each macOS user has their own Keychain, so multiple people can use the same install with different credentials.
 
+## Configure your environment
+
+Copy the example config and fill in your subscription, workspaces, and clusters:
+
+```bash
+mkdir -p ~/.sensewatch
+cp config.example.json ~/.sensewatch/config.json
+```
+
+Edit `~/.sensewatch/config.json`:
+
+```json
+{
+  "subscription": "YOUR_SUBSCRIPTION_UUID",
+  "workspace_zone": "cn-sh-01z",
+  "cluster_zone": "cn-sh-01e",
+  "workspaces": ["your-workspace-name"],
+  "clusters": {
+    "your-cluster": {"device": "N6lS", "vram_gb": 80, "nodes": 8}
+  },
+  "workspace_resource_ids": {
+    "your-workspace-name": "WORKSPACE_RESOURCE_UUID"
+  },
+  "my_usernames": ["YOUR_IAM_USERNAME"]
+}
+```
+
+Ask your admin for the subscription UUID, workspace names, and cluster details. Your IAM username is visible in the SenseCore Console under your job details (`ownership.user_name`).
+
 ## Setup `sco` CLI (recommended)
 
 The `sco` CLI provides accurate GPU availability counts. Without it, SenseWatch falls back to estimating from node counts.
@@ -77,16 +106,6 @@ sco config set resource_group default
 # Verify
 sco aec2 clusters usage --name=computing-cluster-01e
 ```
-
-## Configure your identity
-
-Edit `sensewatch/config.py` and set your IAM username(s):
-
-```python
-MY_USERNAMES: set[str] | None = {"YOUR_IAM_USERNAME"}
-```
-
-To find your IAM username, check any of your jobs on the SenseCore Console, or ask your admin. Set to `None` to see all users' jobs.
 
 ## Run
 
@@ -157,18 +176,16 @@ All I/O runs in background threads. The main thread only rebuilds the menu. This
 
 ## Configuration reference
 
-All settings are in `sensewatch/config.py`:
+User-specific settings live in `~/.sensewatch/config.json` (see `config.example.json`).
+Polling intervals and other defaults live in `sensewatch/config.py`:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `WORKSPACES` | `["share-space-01e", "project-one"]` | Workspaces to monitor |
-| `CLUSTERS` | 4 clusters | Known clusters with device/VRAM metadata |
 | `POLL_INTERVAL_JOBS` | `60` | Seconds between ACP job polls |
 | `POLL_INTERVAL_CCI` | `120` | Seconds between CCI container polls |
 | `POLL_INTERVAL_GPU` | `300` | Seconds between GPU availability polls |
 | `POLL_INTERVAL_HEALTH` | `30` | Seconds between health pings |
 | `NOTIFICATION_COOLDOWN` | `300` | Don't re-notify same job within N seconds |
-| `MY_USERNAMES` | `{"L202500193"}` | Your IAM username(s) for filtering |
 | `REQUEST_TIMEOUT` | `10` | HTTP request timeout in seconds |
 
 ## Tests

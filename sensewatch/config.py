@@ -1,34 +1,25 @@
-"""SenseWatch configuration: endpoints, workspaces, clusters, polling intervals."""
+"""SenseWatch configuration: endpoints, workspaces, clusters, polling intervals.
+
+User-specific values (subscription, workspaces, clusters, identity) are loaded
+from ~/.sensewatch/config.json. See config.example.json for the template.
+"""
 
 from __future__ import annotations
 
-# ── Service endpoints ────────────────────────────────────────────────────────
+import json
+import logging
+from pathlib import Path
+
+log = logging.getLogger("sensewatch")
+
+# ── User config file ──────────────────────────────────────────────────────────
+CONFIG_DIR = Path.home() / ".sensewatch"
+CONFIG_FILE = CONFIG_DIR / "config.json"
+
+# ── Service endpoints (public, not user-specific) ─────────────────────────────
 AEC2_BASE = "https://aec2.cn-sh-01.sensecoreapi.cn"
 CCI_BASE = "https://cci.cn-sh-01.sensecore.cn"
 MONITOR_BASE = "https://monitor.sensecoreapi.cn"
-
-# ── Subscription / org ───────────────────────────────────────────────────────
-SUBSCRIPTION = "0197ee17-b6eb-7846-b2b4-a77c5f509b92"
-RESOURCE_GROUP = "default"
-WORKSPACE_ZONE = "cn-sh-01z"
-CLUSTER_ZONE = "cn-sh-01e"
-
-# ── Workspaces to monitor ────────────────────────────────────────────────────
-WORKSPACES = ["share-space-01e", "project-one"]
-
-# ── Known clusters ───────────────────────────────────────────────────────────
-CLUSTERS: dict[str, dict] = {
-    "computing-cluster-01e": {"device": "N6lS", "vram_gb": 80, "nodes": 39},
-    "computing-cluster-01e-02": {"device": "N6lS", "vram_gb": 80, "nodes": 3},
-    "computing-cluster-01e-hbxx": {"device": "n11ls", "vram_gb": 141, "nodes": 10},
-    "debug-cluster-01e": {"device": "N6lS", "vram_gb": 80, "nodes": 2},
-}
-
-# ── Workspace resource IDs (for Monitor API) ─────────────────────────────────
-WORKSPACE_RESOURCE_IDS: dict[str, str] = {
-    "share-space-01e": "01995848-9da4-7b9a-917c-db5bdea185e5",
-    "project-one": "019cfffd-a2cb-76b4-a50d-291e0b754b65",
-}
 
 # ── Polling intervals (seconds) ──────────────────────────────────────────────
 POLL_INTERVAL_JOBS = 60
@@ -37,7 +28,7 @@ POLL_INTERVAL_GPU = 300
 POLL_INTERVAL_HEALTH = 30
 
 # ── Notification ──────────────────────────────────────────────────────────────
-NOTIFICATION_COOLDOWN = 300  # seconds — don't re-notify same job within 5 min
+NOTIFICATION_COOLDOWN = 300
 
 # ── Keychain ──────────────────────────────────────────────────────────────────
 KEYCHAIN_AKID_SERVICE = "sensecore_access_key_id"
@@ -47,10 +38,58 @@ KEYCHAIN_SECRET_SERVICE = "sensecore_access_key_secret"
 ACTIVE_JOB_STATES = {"RUNNING", "CREATING", "STARTING", "INIT", "PENDING"}
 TERMINAL_JOB_STATES = {"SUCCEEDED", "FAILED", "STOPPED", "DELETED"}
 
-# ── User identity (for filtering "my jobs/containers") ────────────────────────
-# IAM usernames — you may have different usernames across ACP and CCI.
-# Set to None to show all.
-MY_USERNAMES: set[str] | None = {"L202500193"}
-
 # ── HTTP ──────────────────────────────────────────────────────────────────────
-REQUEST_TIMEOUT = 10  # seconds
+REQUEST_TIMEOUT = 10
+
+# ── User-specific (loaded from config.json) ───────────────────────────────────
+SUBSCRIPTION: str = ""
+RESOURCE_GROUP: str = "default"
+WORKSPACE_ZONE: str = ""
+CLUSTER_ZONE: str = ""
+WORKSPACES: list[str] = []
+CLUSTERS: dict[str, dict] = {}
+WORKSPACE_RESOURCE_IDS: dict[str, str] = {}
+MY_USERNAMES: set[str] | None = None
+
+
+def load_user_config() -> bool:
+    """Load user-specific config from ~/.sensewatch/config.json.
+
+    Returns True if loaded successfully, False if file missing/invalid.
+    """
+    global SUBSCRIPTION, RESOURCE_GROUP, WORKSPACE_ZONE, CLUSTER_ZONE
+    global WORKSPACES, CLUSTERS, WORKSPACE_RESOURCE_IDS, MY_USERNAMES
+
+    if not CONFIG_FILE.exists():
+        return False
+
+    try:
+        data = json.loads(CONFIG_FILE.read_text())
+    except (json.JSONDecodeError, OSError) as e:
+        log.error("Failed to load %s: %s", CONFIG_FILE, e)
+        return False
+
+    SUBSCRIPTION = data.get("subscription", SUBSCRIPTION)
+    RESOURCE_GROUP = data.get("resource_group", RESOURCE_GROUP)
+    WORKSPACE_ZONE = data.get("workspace_zone", WORKSPACE_ZONE)
+    CLUSTER_ZONE = data.get("cluster_zone", CLUSTER_ZONE)
+    WORKSPACES = data.get("workspaces", WORKSPACES)
+    CLUSTERS = data.get("clusters", CLUSTERS)
+    WORKSPACE_RESOURCE_IDS = data.get("workspace_resource_ids", WORKSPACE_RESOURCE_IDS)
+
+    usernames = data.get("my_usernames")
+    if usernames:
+        MY_USERNAMES = set(usernames)
+
+    return True
+
+
+def config_missing_message() -> str:
+    """Return setup instructions when config.json is missing."""
+    return (
+        f"Config file not found: {CONFIG_FILE}\n\n"
+        "Create it from the template:\n\n"
+        f"  mkdir -p {CONFIG_DIR}\n"
+        f"  cp config.example.json {CONFIG_FILE}\n\n"
+        "Then edit with your subscription, workspaces, and IAM username."
+    )
