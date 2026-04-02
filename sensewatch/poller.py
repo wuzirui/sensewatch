@@ -42,11 +42,13 @@ class Poller:
     def poll_jobs(self, _timer=None) -> None:
         for workspace in config.WORKSPACES:
             try:
-                raw = self.client.list_training_jobs(workspace)
-                snapshots = parse_job_snapshots(workspace, raw)
-                transitions = self.state.update_jobs(workspace, snapshots)
+                # Single query: filter by my username server-side
+                my_user = next(iter(config.MY_USERNAMES)) if config.MY_USERNAMES else None
+                raw = self.client.list_training_jobs(workspace, user_name=my_user)
+                all_snapshots = parse_job_snapshots(workspace, raw)
+
+                transitions = self.state.update_jobs(workspace, all_snapshots)
                 for job_key, old_state, new_state in transitions:
-                    # Only notify for my jobs
                     job = self.state.jobs.get(job_key)
                     if job and config.MY_USERNAMES and job.owner_username not in config.MY_USERNAMES:
                         continue

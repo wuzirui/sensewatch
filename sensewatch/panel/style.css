@@ -55,6 +55,35 @@ body {
   letter-spacing: 0.05em;
   color: var(--text-dim);
   padding: 4px 8px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.btn-filter {
+  font-size: 9px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  transition: all 0.15s;
+}
+
+.btn-filter:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.btn-filter.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  font-weight: 500;
 }
 
 /* ── Health bar ──────────────────────────── */
@@ -234,6 +263,77 @@ body {
   font-size: 9px;
   color: var(--text-dim);
   margin-top: 1px;
+}
+
+/* ── GPU breakdown ───────────────────────── */
+
+.gpu-card.clickable { cursor: pointer; transition: background 0.15s; }
+.gpu-card.clickable:hover { background: var(--bg-hover); }
+
+.gpu-breakdown { margin-top: 0; max-height: 0; overflow: hidden; transition: max-height 0.2s ease, margin-top 0.2s; }
+.gpu-card.expanded .gpu-breakdown { max-height: 400px; margin-top: 8px; }
+
+.bd-summary {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 6px;
+  font-family: "SF Mono", "Menlo", monospace;
+}
+
+.bd-loading {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 4px 0;
+}
+
+.bd-nodes { display: flex; flex-direction: column; gap: 3px; }
+
+.bd-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}
+
+.bd-host {
+  color: var(--text-dim);
+  width: 50px;
+  text-align: right;
+  font-family: "SF Mono", "Menlo", monospace;
+  font-size: 9px;
+  flex-shrink: 0;
+}
+
+.bd-blocks { display: flex; gap: 2px; }
+
+.bd-block {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.bd-block.used { background: var(--red); opacity: 0.6; }
+.bd-block.idle { background: var(--green); opacity: 0.8; }
+
+.bd-label {
+  color: var(--text-dim);
+  font-size: 9px;
+  font-family: "SF Mono", "Menlo", monospace;
+}
+
+.bd-note {
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.bd-full-count {
+  font-size: 9px;
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 3px 0 0 56px;
 }
 
 /* ── Buttons ─────────────────────────────── */

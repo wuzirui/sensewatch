@@ -39,7 +39,7 @@ ACTIVE_JOB_STATES = {"RUNNING", "CREATING", "STARTING", "INIT", "PENDING"}
 TERMINAL_JOB_STATES = {"SUCCEEDED", "FAILED", "STOPPED", "DELETED"}
 
 # ── HTTP ──────────────────────────────────────────────────────────────────────
-REQUEST_TIMEOUT = 10
+REQUEST_TIMEOUT = 20
 
 # ── User-specific (loaded from config.json) ───────────────────────────────────
 SUBSCRIPTION: str = ""

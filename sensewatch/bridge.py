@@ -203,6 +203,83 @@ class Bridge:
             "worker_events": worker_events,
         }
 
+    def get_gpu_breakdown(self, cluster_name: str) -> dict:
+        """Get per-node GPU breakdown for a cluster.
+
+        Uses sco's idle count as ground truth. Scans workers to show
+        which partially-used nodes have free slots. The remainder
+        (sco_idle - sum of per-node idle) is reported as unaccounted.
+        """
+        from collections import defaultdict
+        from .api_client import sco_cluster_usage
+
+        node_usage: dict[str, int] = defaultdict(int)
+        gpus_per_node = 8
+
+        # Get the authoritative idle count from sco
+        sco_data = sco_cluster_usage(cluster_name)
+        sco_idle = sco_data["gpu_idle"] if sco_data and "gpu_idle" in sco_data else None
+        sco_total = sco_data["gpu_total"] if sco_data and "gpu_total" in sco_data else None
+
+        for ws in config.WORKSPACES:
+            try:
+                raw = self.app.client.list_training_jobs(ws, page_size=200)
+            except Exception:
+                continue
+            for job in raw.get("training_jobs") or []:
+                pool = (job.get("resource_pool") or {}).get("name", "")
+                if pool != cluster_name:
+                    continue
+                if job.get("state") not in config.ACTIVE_JOB_STATES:
+                    continue
+                try:
+                    workers = self.app.client.list_workers(ws, job["name"])
+                    for w in workers.get("workers") or []:
+                        host = w.get("host_ip", "")
+                        if not host:
+                            continue
+                        for c in w.get("containers") or []:
+                            res = (c.get("resources") or {}).get("limits") or {}
+                            node_usage[host] += int(res.get("nvidia.com/gpu", 0))
+                except Exception:
+                    pass
+
+        # Build node list — only partially used nodes (have idle slots)
+        nodes = []
+        node_idle_sum = 0
+        for host in sorted(node_usage):
+            used = node_usage[host]
+            idle = max(0, gpus_per_node - used)
+            if idle > 0:
+                nodes.append({"host": host, "used": used, "idle": idle, "total": gpus_per_node})
+                node_idle_sum += idle
+
+        # Use sco as ground truth for total idle
+        if sco_idle is not None:
+            displayed_idle = sco_idle
+            visible_gaps = node_idle_sum
+            # Our visible per-node gaps may exceed sco idle (other subscriptions use GPUs we can't see)
+            note = ""
+            if visible_gaps > sco_idle:
+                note = f"({visible_gaps - sco_idle} used by other subscriptions)"
+        else:
+            displayed_idle = node_idle_sum
+            note = ""
+
+        idle_parts = [str(n["idle"]) for n in nodes]
+        idle_summary = "+".join(idle_parts) if idle_parts else "0"
+
+        return {
+            "cluster": cluster_name,
+            "nodes": nodes,
+            "idle_summary": idle_summary,
+            "sco_idle": displayed_idle,
+            "visible_gaps": node_idle_sum,
+            "note": note,
+            "total_nodes": len(node_usage),
+            "full_nodes": sum(1 for v in node_usage.values() if v >= gpus_per_node),
+        }
+
     def open_console(self, url: str) -> None:
         webbrowser.open(url)
 

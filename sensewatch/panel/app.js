@@ -3,6 +3,7 @@
 let state = null;
 let pollInterval = null;
 let expandedCards = new Set();  // track which cards are expanded by name
+let runningOnly = false;        // filter to show only running jobs
 
 // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,11 @@ async function fetchState() {
 
 function render() {
   if (!state) return;
+
+  // Never rebuild DOM while the log/events modal is open
+  const modal = document.getElementById("log-modal");
+  if (modal && !modal.classList.contains("hidden")) return;
+
   const scrollTop = document.getElementById("app").scrollTop;
   renderHealth();
   renderJobs();
@@ -57,15 +63,41 @@ function renderJobs() {
   const list = document.getElementById("jobs-list");
   const other = document.getElementById("jobs-other");
 
-  if (!state.jobs.length) {
-    list.innerHTML = '<div class="empty">No active jobs</div>';
-  } else {
-    list.innerHTML = state.jobs.map(jobCard).join("");
+  const visibleJobs = runningOnly
+    ? state.jobs.filter(j => j.state === "RUNNING" || j.state === "STARTING" || j.state === "CREATING" || j.state === "INIT")
+    : state.jobs;
+  const hiddenCount = state.jobs.length - visibleJobs.length;
+
+  // Skip rebuild if any job card is expanded (user is interacting)
+  const anyExpanded = visibleJobs.some(j => expandedCards.has(j.name));
+  if (anyExpanded) {
+    for (const job of visibleJobs) {
+      if (job.last_log_line) {
+        const cards = list.querySelectorAll('.card');
+        for (const card of cards) {
+          if (card.querySelector('.card-name')?.textContent === (job.display_name || job.name)) {
+            const logEl = card.querySelector('.card-logs');
+            if (logEl) logEl.textContent = job.last_log_line;
+          }
+        }
+      }
+    }
+    return;
   }
 
-  other.textContent = state.other_jobs_count > 0
-    ? `${state.other_jobs_count} other users' jobs hidden`
-    : "";
+  if (!visibleJobs.length) {
+    list.innerHTML = '<div class="empty">No active jobs</div>';
+  } else {
+    list.innerHTML = visibleJobs.map(jobCard).join("");
+  }
+
+  let info = "";
+  if (runningOnly && hiddenCount > 0) info += `${hiddenCount} non-running hidden`;
+  if (state.other_jobs_count > 0) {
+    if (info) info += " · ";
+    info += `${state.other_jobs_count} other users' jobs hidden`;
+  }
+  other.textContent = info;
 }
 
 function jobCard(job) {
@@ -150,6 +182,17 @@ function cciCard(app) {
 // ── GPU ───────────────────────────────────────────────────────────────────
 
 function renderGPU() {
+  // Skip full rebuild if any GPU card is expanded (breakdown open)
+  const anyExpanded = state.gpus.some(g => expandedCards.has("gpu-" + g.cluster));
+  if (anyExpanded) {
+    // Only update the numbers in-place without rebuilding HTML
+    for (const gpu of state.gpus) {
+      const countEl = document.querySelector(`#gpu-bd-${gpu.cluster}`)?.closest('.gpu-card')?.querySelector('.gpu-count');
+      if (countEl) countEl.textContent = `Idle: ${gpu.idle} / ${gpu.total}`;
+    }
+    return;
+  }
+
   const list = document.getElementById("gpu-list");
   if (!state.gpus.length) {
     list.innerHTML = '<div class="empty">Loading...</div>';
@@ -161,9 +204,10 @@ function renderGPU() {
 function gpuCard(gpu) {
   const pct = gpu.total > 0 ? (gpu.used / gpu.total) * 100 : 0;
   const barClass = pct >= 95 ? "full" : pct >= 75 ? "high" : pct >= 50 ? "mid" : "low";
+  const isExpanded = expandedCards.has("gpu-" + gpu.cluster);
 
   return `
-    <div class="gpu-card">
+    <div class="gpu-card clickable${isExpanded ? ' expanded' : ''}" onclick="toggleGPU(this, '${esc(gpu.cluster)}')">
       <div class="gpu-header">
         <span class="gpu-name">${esc(shortCluster(gpu.cluster))}</span>
         <span class="gpu-count">Idle: ${gpu.idle} / ${gpu.total}</span>
@@ -173,7 +217,63 @@ function gpuCard(gpu) {
       </div>
       <div class="gpu-meta">${esc(gpu.device)} ${gpu.vram_gb}GB</div>
       ${gpu.commentary ? `<div class="gpu-commentary">${esc(gpu.commentary)}</div>` : ''}
+      <div class="gpu-breakdown" id="gpu-bd-${esc(gpu.cluster)}"></div>
     </div>`;
+}
+
+async function toggleGPU(el, cluster) {
+  const key = "gpu-" + cluster;
+  const bdEl = document.getElementById("gpu-bd-" + cluster);
+
+  if (expandedCards.has(key)) {
+    expandedCards.delete(key);
+    el.classList.remove("expanded");
+    if (bdEl) bdEl.innerHTML = "";
+    return;
+  }
+
+  expandedCards.add(key);
+  el.classList.add("expanded");
+  if (bdEl) bdEl.innerHTML = '<div class="bd-loading">Loading node breakdown...</div>';
+
+  try {
+    const data = await pywebview.api.get_gpu_breakdown(cluster);
+    if (!bdEl) return;
+
+    // Filter out full nodes, sort by idle desc
+    const nodesWithIdle = data.nodes.filter(n => n.idle > 0).sort((a, b) => b.idle - a.idle);
+    const fullCount = data.full_nodes || 0;
+
+    let html = '';
+    if (data.visible_gaps !== data.sco_idle && data.sco_idle !== undefined) {
+      html += `<div class="bd-summary">Gaps on visible nodes: ${esc(data.idle_summary)}</div>`;
+      if (data.note) html += `<div class="bd-note">${esc(data.note)}</div>`;
+    } else {
+      html += `<div class="bd-summary">${data.sco_idle} = ${esc(data.idle_summary)}</div>`;
+    }
+    html += '<div class="bd-nodes">';
+    for (const node of nodesWithIdle) {
+      const blocks = [];
+      for (let i = 0; i < node.total; i++) {
+        blocks.push(i < node.used
+          ? '<span class="bd-block used"></span>'
+          : '<span class="bd-block idle"></span>');
+      }
+      const hostShort = node.host.startsWith("(") ? node.host : node.host.split(".").slice(-2).join(".");
+      html += `<div class="bd-node">
+        <span class="bd-host">${esc(hostShort)}</span>
+        <span class="bd-blocks">${blocks.join("")}</span>
+        <span class="bd-label">${node.idle}/${node.total}</span>
+      </div>`;
+    }
+    if (fullCount > 0) {
+      html += `<div class="bd-full-count">${fullCount} full node${fullCount > 1 ? 's' : ''} hidden</div>`;
+    }
+    html += '</div>';
+    bdEl.innerHTML = html;
+  } catch (e) {
+    if (bdEl) bdEl.innerHTML = `<div class="bd-loading">Error: ${e}</div>`;
+  }
 }
 
 function shortCluster(name) {
@@ -187,6 +287,13 @@ function renderFlavor() {
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────
+
+function toggleRunningOnly() {
+  runningOnly = !runningOnly;
+  const btn = document.getElementById("btn-running-only");
+  if (btn) btn.classList.toggle("active", runningOnly);
+  render();
+}
 
 function toggleCard(el, name) {
   el.classList.toggle("expanded");

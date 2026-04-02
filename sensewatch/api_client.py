@@ -72,9 +72,31 @@ class SenseCoreAPIClient:
 
     # ── ACP (Training Jobs) ──────────────────────────────────────────────
 
-    def list_training_jobs(self, workspace: str, page_size: int = 100) -> dict[str, Any]:
-        path = f"{self._acp_base_path(workspace)}/trainingJobs?page_size={page_size}"
-        return self.auth.request_json("GET", config.AEC2_BASE, path)
+    def list_training_jobs(
+        self,
+        workspace: str,
+        page_size: int = 200,
+        user_name: str | None = None,
+        state: str | None = None,
+    ) -> dict[str, Any]:
+        """List training jobs with pagination and optional filters."""
+        all_jobs: list[dict[str, Any]] = []
+        page_token = ""
+        while True:
+            path = f"{self._acp_base_path(workspace)}/trainingJobs?page_size={page_size}"
+            if user_name:
+                path += f"&user_name={user_name}"
+            if state:
+                path += f"&state={state}"
+            if page_token:
+                path += f"&page_token={page_token}"
+            raw = self.auth.request_json("GET", config.AEC2_BASE, path)
+            jobs = raw.get("training_jobs") or []
+            all_jobs.extend(jobs)
+            page_token = raw.get("next_page_token", "")
+            if not page_token or not jobs:
+                break
+        return {"training_jobs": all_jobs}
 
     def get_training_job(self, workspace: str, job_name: str) -> dict[str, Any]:
         path = f"{self._acp_base_path(workspace)}/trainingJobs/{job_name}"
