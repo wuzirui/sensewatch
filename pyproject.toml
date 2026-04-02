@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sensewatch"
+version = "0.1.0"
+description = "macOS menu bar monitor for SenseCore GPU clusters"
+requires-python = ">=3.10"
+dependencies = [
+    "rumps>=0.4.0",
+]
+
+[project.scripts]
+sensewatch = "sensewatch.__main__:main"
+
+[project.optional-dependencies]
+dev = ["pytest", "pillow"]
+
+[tool.setuptools.packages.find]
+include = ["sensewatch*"]
+
+[tool.setuptools.package-data]
+sensewatch = ["resources/*"]
