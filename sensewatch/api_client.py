@@ -110,6 +110,20 @@ class SenseCoreAPIClient:
         path = f"{self._cci_base_path(workspace)}/apps/{app_name}:stop"
         return self.auth.request_json("POST", config.CCI_BASE, path)
 
+    # ── ACP Workers & Events ───────────────────────────────────────────────
+
+    def list_workers(self, workspace: str, job_name: str) -> dict[str, Any]:
+        path = f"{self._acp_base_path(workspace)}/trainingJobs/{job_name}/workers"
+        return self.auth.request_json("GET", config.AEC2_BASE, path)
+
+    def get_job_events(self, workspace: str, job_name: str) -> dict[str, Any]:
+        path = f"{self._acp_base_path(workspace)}/trainingJobs/{job_name}/events"
+        return self.auth.request_json("GET", config.AEC2_BASE, path)
+
+    def get_worker_events(self, workspace: str, job_name: str, worker_name: str) -> dict[str, Any]:
+        path = f"{self._acp_base_path(workspace)}/trainingJobs/{job_name}/workers/{worker_name}/events"
+        return self.auth.request_json("GET", config.AEC2_BASE, path)
+
     # ── AEC2 (Cluster Resources) ─────────────────────────────────────────
 
     def list_workspace_bindings(self, workspace: str) -> dict[str, Any]:

@@ -9,6 +9,7 @@ description = "macOS menu bar monitor for SenseCore GPU clusters"
 requires-python = ">=3.10"
 dependencies = [
     "rumps>=0.4.0",
+    "pywebview>=5.0",
 ]
 
 [project.scripts]
@@ -21,4 +22,4 @@ dev = ["pytest", "pillow"]
 include = ["sensewatch*"]
 
 [tool.setuptools.package-data]
-sensewatch = ["resources/*"]
+sensewatch = ["resources/*", "panel/*"]

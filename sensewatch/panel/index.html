@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SenseWatch</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Health bar -->
+    <div id="health" class="section health-bar">
+      <span class="health-dot" id="h-aec2" title="AEC2 (Jobs/GPU)"></span>
+      <span class="health-label">AEC2</span>
+      <span class="health-dot" id="h-cci" title="CCI (Containers)"></span>
+      <span class="health-label">CCI</span>
+      <span class="health-dot" id="h-monitor" title="Monitor (Logs)"></span>
+      <span class="health-label">Monitor</span>
+    </div>
+
+    <!-- Jobs -->
+    <div id="jobs-section" class="section">
+      <div class="section-header">My Jobs</div>
+      <div id="jobs-list" class="card-list"></div>
+      <div id="jobs-other" class="other-count"></div>
+    </div>
+
+    <!-- CCI -->
+    <div id="cci-section" class="section">
+      <div class="section-header">My CCI Containers</div>
+      <div id="cci-list" class="card-list"></div>
+      <div id="cci-other" class="other-count"></div>
+    </div>
+
+    <!-- GPU -->
+    <div id="gpu-section" class="section">
+      <div class="section-header">GPU Availability</div>
+      <div id="gpu-list" class="card-list"></div>
+    </div>
+
+    <!-- Footer -->
+    <div id="footer" class="section footer">
+      <div id="flavor" class="flavor-text"></div>
+      <div class="footer-actions">
+        <button id="btn-refresh" class="btn btn-sm" onclick="doRefresh()">Refresh</button>
+        <button id="btn-quit" class="btn btn-sm btn-dim" onclick="doQuit()">Quit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log modal -->
+  <div id="log-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span id="log-modal-title">Logs</span>
+        <button class="btn btn-sm" onclick="closeLogModal()">Close</button>
+      </div>
+      <pre id="log-modal-body" class="log-body"></pre>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

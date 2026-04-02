@@ -1,0 +1,347 @@
+/* SenseWatch Panel — fetches state from Python bridge, renders UI */
+
+let state = null;
+let pollInterval = null;
+let expandedCards = new Set();  // track which cards are expanded by name
+
+// ── Init ──────────────────────────────────────────────────────────────────
+
+async function init() {
+  while (!window.pywebview || !window.pywebview.api) {
+    await new Promise(r => setTimeout(r, 100));
+  }
+  await fetchState();
+  pollInterval = setInterval(fetchState, 2000);
+}
+
+async function fetchState() {
+  try {
+    const newState = await pywebview.api.get_state();
+    // Only re-render if data actually changed
+    if (JSON.stringify(newState) !== JSON.stringify(state)) {
+      state = newState;
+      render();
+    }
+  } catch (e) {
+    console.error("fetch failed:", e);
+  }
+}
+
+// ── Render (preserves expanded state + scroll) ───────────────────────────
+
+function render() {
+  if (!state) return;
+  const scrollTop = document.getElementById("app").scrollTop;
+  renderHealth();
+  renderJobs();
+  renderCCI();
+  renderGPU();
+  renderFlavor();
+  document.getElementById("app").scrollTop = scrollTop;
+}
+
+function renderHealth() {
+  setDot("h-aec2", state.health.aec2);
+  setDot("h-cci", state.health.cci);
+  setDot("h-monitor", state.health.monitor);
+}
+
+function setDot(id, ok) {
+  const el = document.getElementById(id);
+  if (el) el.className = "health-dot" + (ok ? " ok" : "");
+}
+
+// ── Jobs ──────────────────────────────────────────────────────────────────
+
+function renderJobs() {
+  const list = document.getElementById("jobs-list");
+  const other = document.getElementById("jobs-other");
+
+  if (!state.jobs.length) {
+    list.innerHTML = '<div class="empty">No active jobs</div>';
+  } else {
+    list.innerHTML = state.jobs.map(jobCard).join("");
+  }
+
+  other.textContent = state.other_jobs_count > 0
+    ? `${state.other_jobs_count} other users' jobs hidden`
+    : "";
+}
+
+function jobCard(job) {
+  const badge = badgeClass(job.state);
+  const gpu = job.gpu_count > 0
+    ? `${job.gpu_count}\u00d7 ${job.spec_name.split(".")[0] || "GPU"}`
+    : "";
+  const logHtml = job.last_log_line
+    ? `<div class="card-logs">${esc(job.last_log_line)}</div>`
+    : "";
+
+  const schrodinger = job.state === "STARTING" && job.create_time && isStuckStarting(job)
+    ? ' (or is it?) \ud83d\udc31' : '';
+
+  const isExpanded = expandedCards.has(job.name);
+
+  return `
+    <div class="card${isExpanded ? ' expanded' : ''}" onclick="toggleCard(this, '${esc(job.name)}')">
+      <div class="card-header">
+        <span class="card-name">${esc(job.display_name)}</span>
+        <span class="badge ${badge}">${esc(job.state)}${schrodinger}</span>
+      </div>
+      <div class="card-meta">${esc(gpu)}${gpu && job.pool_name ? " \u00b7 " : ""}${esc(job.pool_name)}</div>
+      ${logHtml}
+      <div class="card-actions">
+        <button class="btn btn-sm" onclick="event.stopPropagation(); viewLogs('${esc(job.name)}', '${esc(job.workspace)}')">Logs</button>
+        <button class="btn btn-sm" onclick="event.stopPropagation(); viewDetail('${esc(job.name)}', '${esc(job.workspace)}')">Events</button>
+        <button class="btn btn-sm" onclick="event.stopPropagation(); copyName('${esc(job.name)}')">Copy</button>
+        <button class="btn btn-sm" onclick="event.stopPropagation(); openConsole('acp')">Console</button>
+      </div>
+    </div>`;
+}
+
+function isStuckStarting(job) {
+  try {
+    const created = new Date(job.create_time);
+    return (Date.now() - created.getTime()) > 600000;
+  } catch { return false; }
+}
+
+// ── CCI ───────────────────────────────────────────────────────────────────
+
+function renderCCI() {
+  const list = document.getElementById("cci-list");
+  const other = document.getElementById("cci-other");
+
+  if (!state.cci.length) {
+    list.innerHTML = '<div class="empty">No containers</div>';
+  } else {
+    list.innerHTML = state.cci.map(cciCard).join("");
+  }
+
+  other.textContent = state.other_cci_count > 0
+    ? `${state.other_cci_count} other users' containers hidden`
+    : "";
+}
+
+function cciCard(app) {
+  const badge = badgeClass(app.state);
+  const canStart = ["STOPPED", "SUSPENDED"].includes(app.state);
+  const canStop = app.state === "RUNNING";
+  const isExpanded = expandedCards.has(app.name);
+
+  const actions = [];
+  if (canStart) actions.push(`<button class="btn btn-sm btn-success" onclick="event.stopPropagation(); cciStart('${esc(app.name)}', '${esc(app.workspace)}')">Start</button>`);
+  if (canStop) actions.push(`<button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); cciStop('${esc(app.name)}', '${esc(app.workspace)}')">Stop</button>`);
+  actions.push(`<button class="btn btn-sm" onclick="event.stopPropagation(); openConsole('cci')">Console</button>`);
+
+  return `
+    <div class="card${isExpanded ? ' expanded' : ''}" onclick="toggleCard(this, '${esc(app.name)}')">
+      <div class="card-header">
+        <span class="card-name">${esc(app.display_name)}</span>
+        <span class="badge ${badge}">${esc(app.state)}</span>
+      </div>
+      ${app.gpu_count > 0 ? `<div class="card-meta">${app.gpu_count} GPU</div>` : ''}
+      <div class="card-actions">
+        ${actions.join("")}
+      </div>
+    </div>`;
+}
+
+// ── GPU ───────────────────────────────────────────────────────────────────
+
+function renderGPU() {
+  const list = document.getElementById("gpu-list");
+  if (!state.gpus.length) {
+    list.innerHTML = '<div class="empty">Loading...</div>';
+    return;
+  }
+  list.innerHTML = state.gpus.map(gpuCard).join("");
+}
+
+function gpuCard(gpu) {
+  const pct = gpu.total > 0 ? (gpu.used / gpu.total) * 100 : 0;
+  const barClass = pct >= 95 ? "full" : pct >= 75 ? "high" : pct >= 50 ? "mid" : "low";
+
+  return `
+    <div class="gpu-card">
+      <div class="gpu-header">
+        <span class="gpu-name">${esc(shortCluster(gpu.cluster))}</span>
+        <span class="gpu-count">Idle: ${gpu.idle} / ${gpu.total}</span>
+      </div>
+      <div class="gpu-bar-bg">
+        <div class="gpu-bar-fill ${barClass}" style="width: ${pct}%"></div>
+      </div>
+      <div class="gpu-meta">${esc(gpu.device)} ${gpu.vram_gb}GB</div>
+      ${gpu.commentary ? `<div class="gpu-commentary">${esc(gpu.commentary)}</div>` : ''}
+    </div>`;
+}
+
+function shortCluster(name) {
+  return name.replace("computing-cluster-", "").replace("debug-cluster-", "debug-");
+}
+
+// ── Flavor ────────────────────────────────────────────────────────────────
+
+function renderFlavor() {
+  document.getElementById("flavor").textContent = state.flavor || "";
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────
+
+function toggleCard(el, name) {
+  el.classList.toggle("expanded");
+  if (expandedCards.has(name)) {
+    expandedCards.delete(name);
+  } else {
+    expandedCards.add(name);
+  }
+}
+
+async function viewLogs(name, workspace) {
+  const modal = document.getElementById("log-modal");
+  const title = document.getElementById("log-modal-title");
+  const body = document.getElementById("log-modal-body");
+
+  title.textContent = `Logs: ${name}`;
+  body.textContent = "Loading...";
+  modal.classList.remove("hidden");
+
+  try {
+    const logs = await pywebview.api.get_job_logs(name, workspace);
+    body.textContent = logs;
+    await pywebview.api.copy_to_clipboard(logs);
+  } catch (e) {
+    body.textContent = `Error: ${e}`;
+  }
+}
+
+function closeLogModal() {
+  document.getElementById("log-modal").classList.add("hidden");
+}
+
+async function viewDetail(name, workspace) {
+  const modal = document.getElementById("log-modal");
+  const title = document.getElementById("log-modal-title");
+  const body = document.getElementById("log-modal-body");
+
+  title.textContent = `Events: ${name}`;
+  body.textContent = "Loading...";
+  modal.classList.remove("hidden");
+
+  try {
+    const detail = await pywebview.api.get_job_detail(name, workspace);
+    let text = "";
+
+    // Workers
+    if (detail.workers.length) {
+      text += "=== Workers ===\n";
+      for (const w of detail.workers) {
+        const short = w.name.split("-").slice(-2).join("-");
+        text += `  ${short}  ${w.phase}  ${w.device_type}  host=${w.host_ip || "(none)"}\n`;
+      }
+      text += "\n";
+    }
+
+    // Job events
+    if (detail.job_events.length) {
+      text += "=== Job Events ===\n";
+      for (const e of detail.job_events) {
+        const tag = e.type === "Warning" ? "\u26a0" : "\u2713";
+        text += `  ${tag} [${e.reason}] ${e.age} ago\n    ${e.message}\n`;
+      }
+      text += "\n";
+    }
+
+    // Worker events (FailedScheduling etc.)
+    if (detail.worker_events.length) {
+      text += "=== Worker Events ===\n";
+      for (const e of detail.worker_events) {
+        const tag = e.type === "Warning" ? "\u26a0" : "\u2713";
+        text += `  ${tag} [${e.worker}] [${e.reason}] ${e.age} ago\n    ${e.message}\n`;
+      }
+    }
+
+    if (!text) text = "(No events found)";
+    body.textContent = text;
+  } catch (e) {
+    body.textContent = `Error: ${e}`;
+  }
+}
+
+async function copyName(name) {
+  await pywebview.api.copy_to_clipboard(name);
+}
+
+function openConsole(type) {
+  const base = "https://console.sensecore.cn";
+  if (type === "acp") pywebview.api.open_console(`${base}/acp`);
+  else pywebview.api.open_console(`${base}/cci`);
+}
+
+async function cciStart(name, workspace) {
+  const result = await pywebview.api.cci_start(name, workspace);
+  if (result !== "ok") alert(result);
+  await fetchState();
+}
+
+async function cciStop(name, workspace) {
+  const result = await pywebview.api.cci_stop(name, workspace);
+  if (result !== "ok") alert(result);
+  await fetchState();
+}
+
+async function doRefresh() {
+  const btn = document.getElementById("btn-refresh");
+  btn.classList.add("loading");
+  btn.innerHTML = '<span class="spinner"></span> Refreshing';
+  try {
+    state = await pywebview.api.refresh();
+    render();
+  } catch (e) {
+    console.error(e);
+  }
+  btn.classList.remove("loading");
+  btn.textContent = "Refresh";
+}
+
+function doQuit() {
+  pywebview.api.quit_app();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+function badgeClass(state) {
+  const s = state.toUpperCase();
+  if (s === "RUNNING") return "badge-running";
+  if (s === "STARTING" || s === "CREATING" || s === "INIT" || s === "PENDING" || s === "PROGRESSING" || s === "QUEUING") return "badge-starting";
+  if (s === "SUCCEEDED") return "badge-succeeded";
+  if (s === "FAILED") return "badge-failed";
+  if (s === "STOPPED" || s === "DELETED") return "badge-stopped";
+  if (s === "SUSPENDED") return "badge-suspended";
+  return "badge-default";
+}
+
+function esc(s) {
+  if (!s) return "";
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ── Keyboard ──────────────────────────────────────────────────────────────
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const modal = document.getElementById("log-modal");
+    if (!modal.classList.contains("hidden")) {
+      closeLogModal();
+    } else {
+      // Hide panel on Escape
+      pywebview.api.hide_panel();
+    }
+  }
+});
+
+// ── Start ─────────────────────────────────────────────────────────────────
+
+init();

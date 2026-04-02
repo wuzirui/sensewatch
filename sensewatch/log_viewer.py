@@ -12,8 +12,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import rumps
-
 from . import config
 from .api_client import SenseCoreAPIClient, _find_sco
 from .state import JobSnapshot

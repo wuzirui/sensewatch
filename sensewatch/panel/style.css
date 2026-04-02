@@ -1,0 +1,392 @@
+/* SenseWatch Panel — dark theme, macOS-native feel */
+
+:root {
+  --bg: #1e1e2e;
+  --bg-card: #282840;
+  --bg-hover: #313150;
+  --bg-modal: #1a1a2e;
+  --text: #cdd6f4;
+  --text-dim: #6c7086;
+  --text-bright: #f5f5ff;
+  --accent: #89b4fa;
+  --green: #a6e3a1;
+  --red: #f38ba8;
+  --yellow: #f9e2af;
+  --orange: #fab387;
+  --border: #45475a;
+  --radius: 8px;
+  --radius-sm: 5px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--bg);
+  overflow-x: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 8px;
+  gap: 6px;
+}
+
+/* ── Sections ────────────────────────────── */
+
+.section {
+  padding: 4px 0;
+}
+
+.section-header {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  padding: 4px 8px 4px;
+}
+
+/* ── Health bar ──────────────────────────── */
+
+.health-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg-card);
+  border-radius: var(--radius);
+}
+
+.health-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+  transition: background 0.3s;
+}
+
+.health-dot.ok {
+  background: var(--green);
+}
+
+.health-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-right: 8px;
+}
+
+/* ── Cards ───────────────────────────────── */
+
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 4px;
+}
+
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border: 1px solid transparent;
+}
+
+.card:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-name {
+  font-weight: 500;
+  color: var(--text-bright);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.badge-running { background: rgba(166,227,161,0.15); color: var(--green); }
+.badge-starting { background: rgba(249,226,175,0.15); color: var(--yellow); }
+.badge-succeeded { background: rgba(137,180,250,0.15); color: var(--accent); }
+.badge-failed { background: rgba(243,139,168,0.15); color: var(--red); }
+.badge-stopped { background: rgba(108,112,134,0.15); color: var(--text-dim); }
+.badge-suspended { background: rgba(250,179,135,0.15); color: var(--orange); }
+.badge-default { background: rgba(108,112,134,0.1); color: var(--text-dim); }
+
+.card-meta {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* ── Job log preview ─────────────────────── */
+
+.card-logs {
+  margin-top: 6px;
+  padding: 5px 7px;
+  background: rgba(0,0,0,0.2);
+  border-radius: var(--radius-sm);
+  font-family: "SF Mono", "Menlo", monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  max-height: 60px;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.card-actions {
+  display: none;
+  gap: 4px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.card.expanded .card-actions {
+  display: flex;
+}
+
+.card.expanded .card-logs {
+  max-height: none;
+}
+
+/* ── GPU bars ────────────────────────────── */
+
+.gpu-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+}
+
+.gpu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.gpu-name {
+  font-size: 11px;
+  color: var(--text-bright);
+  font-weight: 500;
+}
+
+.gpu-count {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.gpu-bar-bg {
+  margin-top: 4px;
+  height: 6px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.gpu-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+.gpu-bar-fill.low { background: var(--green); }
+.gpu-bar-fill.mid { background: var(--yellow); }
+.gpu-bar-fill.high { background: var(--orange); }
+.gpu-bar-fill.full { background: var(--red); }
+
+.gpu-commentary {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-style: italic;
+  margin-top: 3px;
+}
+
+.gpu-meta {
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-top: 1px;
+}
+
+/* ── Buttons ─────────────────────────────── */
+
+.btn {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--text-bright);
+}
+
+.btn-sm {
+  font-size: 10px;
+  padding: 2px 8px;
+}
+
+.btn-dim {
+  color: var(--text-dim);
+  border-color: transparent;
+}
+
+.btn-danger:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.btn-success:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.btn.loading {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ── Other count ─────────────────────────── */
+
+.other-count {
+  font-size: 10px;
+  color: var(--text-dim);
+  padding: 2px 12px;
+  font-style: italic;
+}
+
+/* ── Empty state ─────────────────────────── */
+
+.empty {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 8px 12px;
+  font-style: italic;
+}
+
+/* ── Footer ──────────────────────────────── */
+
+.footer {
+  margin-top: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.flavor-text {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-style: italic;
+  text-align: center;
+  min-height: 14px;
+}
+
+.footer-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* ── Modal ───────────────────────────────── */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  background: var(--bg-modal);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 90%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+  color: var(--text-bright);
+}
+
+.log-body {
+  padding: 10px 12px;
+  overflow-y: auto;
+  font-family: "SF Mono", "Menlo", monospace;
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-all;
+  flex: 1;
+}
+
+/* ── Animations ──────────────────────────── */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.card { animation: fadeIn 0.2s ease; }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner::after {
+  content: "↻";
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
