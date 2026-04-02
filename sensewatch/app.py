@@ -49,6 +49,9 @@ class SenseWatchApp(rumps.App):
 
         self._timers: list[rumps.Timer] = []
         self._menu_dirty = True  # Flag: pollers set this, main thread reads it
+        # Persistent menu items — survive menu.clear() / rebuild
+        self._refresh_item = rumps.MenuItem("Refresh Now", callback=self._on_refresh)
+        self._quit_item = rumps.MenuItem("Quit SenseWatch", callback=self._quit)
 
     # ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -174,7 +177,9 @@ class SenseWatchApp(rumps.App):
             self.menu.add(item)
 
         self.menu.add(rumps.separator)
-        self.menu.add(rumps.MenuItem("Quit SenseWatch", callback=self._quit))
+        self.menu.add(self._refresh_item)
+        self.menu.add(rumps.separator)
+        self.menu.add(self._quit_item)
 
     def _on_refresh(self, _):
         """Manual refresh — kick all pollers in background."""

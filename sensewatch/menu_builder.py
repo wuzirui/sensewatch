@@ -253,12 +253,6 @@ def build_menu(state: StateStore, flavor_text: str = "", app_ref=None) -> list[r
     items.extend(build_gpu_section(state))
     items.append(rumps.separator)
 
-    # Refresh button — wire callback directly
-    refresh = rumps.MenuItem("Refresh Now")
-    if app_ref is not None:
-        refresh.set_callback(app_ref._on_refresh)
-    items.append(refresh)
-
     # Flavor text footer
     if flavor_text:
         items.append(rumps.separator)
