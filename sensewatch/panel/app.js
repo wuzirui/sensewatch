@@ -63,15 +63,12 @@ function renderJobs() {
   const list = document.getElementById("jobs-list");
   const other = document.getElementById("jobs-other");
 
-  const visibleJobs = runningOnly
-    ? state.jobs.filter(j => j.state === "RUNNING" || j.state === "STARTING" || j.state === "CREATING" || j.state === "INIT")
-    : state.jobs;
-  const hiddenCount = state.jobs.length - visibleJobs.length;
+  const isActive = j => j.state === "RUNNING" || j.state === "STARTING" || j.state === "CREATING" || j.state === "INIT";
 
   // Skip rebuild if any job card is expanded (user is interacting)
-  const anyExpanded = visibleJobs.some(j => expandedCards.has(j.name));
+  const anyExpanded = state.jobs.some(j => expandedCards.has(j.name));
   if (anyExpanded) {
-    for (const job of visibleJobs) {
+    for (const job of state.jobs) {
       if (job.last_log_line) {
         const cards = list.querySelectorAll('.card');
         for (const card of cards) {
@@ -85,14 +82,18 @@ function renderJobs() {
     return;
   }
 
-  if (!visibleJobs.length) {
+  // Always render all jobs; hide non-active ones via CSS when filter is on
+  if (!state.jobs.length) {
     list.innerHTML = '<div class="empty">No active jobs</div>';
   } else {
-    list.innerHTML = visibleJobs.map(jobCard).join("");
+    list.innerHTML = state.jobs.map(j => jobCard(j, runningOnly && !isActive(j))).join("");
   }
 
   let info = "";
-  if (runningOnly && hiddenCount > 0) info += `${hiddenCount} non-running hidden`;
+  if (runningOnly) {
+    const hiddenCount = state.jobs.filter(j => !isActive(j)).length;
+    if (hiddenCount > 0) info += `${hiddenCount} non-running hidden`;
+  }
   if (state.other_jobs_count > 0) {
     if (info) info += " · ";
     info += `${state.other_jobs_count} other users' jobs hidden`;
@@ -100,7 +101,7 @@ function renderJobs() {
   other.textContent = info;
 }
 
-function jobCard(job) {
+function jobCard(job, hidden) {
   const badge = badgeClass(job.state);
   const gpu = job.gpu_count > 0
     ? `${job.gpu_count}\u00d7 ${job.spec_name.split(".")[0] || "GPU"}`
@@ -113,9 +114,10 @@ function jobCard(job) {
     ? ' (or is it?) \ud83d\udc31' : '';
 
   const isExpanded = expandedCards.has(job.name);
+  const hiddenClass = hidden ? ' card-hidden' : '';
 
   return `
-    <div class="card${isExpanded ? ' expanded' : ''}" onclick="toggleCard(this, '${esc(job.name)}')">
+    <div class="card${isExpanded ? ' expanded' : ''}${hiddenClass}" onclick="toggleCard(this, '${esc(job.name)}')">
       <div class="card-header">
         <span class="card-name">${esc(job.display_name)}</span>
         <span class="badge ${badge}">${esc(job.state)}${schrodinger}</span>
@@ -166,17 +168,53 @@ function cciCard(app) {
   if (canStop) actions.push(`<button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); cciStop('${esc(app.name)}', '${esc(app.workspace)}')">Stop</button>`);
   actions.push(`<button class="btn btn-sm" onclick="event.stopPropagation(); openConsole('cci')">Console</button>`);
 
+  // Uptime for running containers
+  let uptimeHtml = "";
+  if (app.state === "RUNNING" && app.update_time) {
+    const info = cciUptime(app);
+    uptimeHtml = `<span class="cci-uptime ${info.cls}">${info.text}</span>`;
+  }
+
+  const metaParts = [];
+  if (app.gpu_count > 0) metaParts.push(`${app.gpu_count} GPU`);
+
   return `
     <div class="card${isExpanded ? ' expanded' : ''}" onclick="toggleCard(this, '${esc(app.name)}')">
       <div class="card-header">
         <span class="card-name">${esc(app.display_name)}</span>
+        ${uptimeHtml}
         <span class="badge ${badge}">${esc(app.state)}</span>
       </div>
-      ${app.gpu_count > 0 ? `<div class="card-meta">${app.gpu_count} GPU</div>` : ''}
+      ${metaParts.length ? `<div class="card-meta">${metaParts.join(" · ")}</div>` : ''}
       <div class="card-actions">
         ${actions.join("")}
       </div>
     </div>`;
+}
+
+function cciUptime(app) {
+  try {
+    const start = new Date(app.update_time);
+    const now = Date.now();
+    const ms = now - start.getTime();
+    const mins = Math.floor(ms / 60000);
+    const hours = Math.floor(mins / 60);
+    const m = mins % 60;
+
+    const limit = app.gpu_count > 0 ? 4 : 12; // GPU=4h, CPU=12h
+    const text = hours > 0 ? `${hours}h${m}m` : `${m}m`;
+    const remaining = limit * 60 - mins;
+
+    let cls = "uptime-ok";
+    if (remaining <= 0) cls = "uptime-expired";
+    else if (remaining <= 30) cls = "uptime-critical";
+    else if (remaining <= 60) cls = "uptime-warning";
+
+    const limitText = `${text} / ${limit}h`;
+    return { text: limitText, cls };
+  } catch {
+    return { text: "", cls: "" };
+  }
 }
 
 // ── GPU ───────────────────────────────────────────────────────────────────

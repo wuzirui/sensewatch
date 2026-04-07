@@ -265,6 +265,21 @@ body {
   margin-top: 1px;
 }
 
+/* ── CCI uptime ──────────────────────────── */
+
+.cci-uptime {
+  font-size: 9px;
+  font-family: "SF Mono", "Menlo", monospace;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.uptime-ok { color: var(--text-dim); }
+.uptime-warning { color: var(--yellow); background: rgba(249,226,175,0.1); }
+.uptime-critical { color: var(--orange); background: rgba(250,179,135,0.15); font-weight: 600; }
+.uptime-expired { color: var(--red); background: rgba(243,139,168,0.15); font-weight: 600; }
+
 /* ── GPU breakdown ───────────────────────── */
 
 .gpu-card.clickable { cursor: pointer; transition: background 0.15s; }
@@ -472,6 +487,33 @@ body {
   flex: 1;
 }
 
+/* ── Floating hide button ───────────────── */
+
+.btn-hide {
+  position: fixed;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-hide:hover {
+  background: var(--border);
+  color: var(--text-bright);
+}
+
 /* ── Animations ──────────────────────────── */
 
 @keyframes fadeIn {
@@ -480,6 +522,9 @@ body {
 }
 
 .card { animation: fadeIn 0.2s ease; }
+.card.card-hidden {
+  display: none;
+}
 
 @keyframes spin {
   to { transform: rotate(360deg); }

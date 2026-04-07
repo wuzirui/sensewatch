@@ -65,6 +65,7 @@ class CCIAppSnapshot:
     display_name: str = ""
     gpu_count: int = 0
     create_time: str = ""
+    update_time: str = ""  # proxy for when current state began
     owner_username: str = ""
 
     @property

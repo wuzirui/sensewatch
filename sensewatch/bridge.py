@@ -55,6 +55,7 @@ class Bridge:
                 "workspace": c.workspace,
                 "state": c.state,
                 "gpu_count": c.gpu_count,
+                "update_time": c.update_time,
             })
 
         # Serialize GPU

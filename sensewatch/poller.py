@@ -106,6 +106,7 @@ class Poller:
                     display_name=item.get("display_name", ""),
                     gpu_count=gpu_count,
                     create_time=item.get("create_time", ""),
+                    update_time=item.get("update_time", ""),
                     owner_username=ownership.get("user_name", ""),
                 )
             )
