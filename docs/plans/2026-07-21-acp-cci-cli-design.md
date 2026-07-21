@@ -39,7 +39,6 @@ resource-spec parsing helpers are extracted.
 
 ```text
 README.md
-LICENSE
 pyproject.toml
 config.example.toml
 docs/
@@ -91,3 +90,7 @@ W&B token, or Hugging Face token is committed.
 
 No live job submission, stop, restart, or CCI lifecycle mutation is part of
 verification.
+
+No software license is introduced by this migration because the repository's
+existing `main` branch does not declare one. Licensing remains an explicit
+repository-owner decision.
