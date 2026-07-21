@@ -1,0 +1,33 @@
+# Copy to ~/.config/dreamdojo/acp.toml and replace every YOUR_* value.
+# Do not put AccessKeys, W&B tokens, HF tokens, or cookies in this file.
+
+[defaults]
+image = "YOUR_CONTAINER_IMAGE"
+cpus_per_gpu = 8
+mem_per_gpu_gb = 128
+workspace = "YOUR_DEFAULT_WORKSPACE"
+forward_env = ["WANDB_API_KEY", "HF_TOKEN"]
+
+[identity]
+# IAM ownership fields shown on an ACP job. Set with `acp whoami --set ...`.
+user_name = "YOUR_IAM_USER_NAME"
+user_id = "YOUR_IAM_USER_ID"
+
+[afs_mount]
+id = "YOUR_AFS_VOLUME_ID"
+mount_path = "/mnt/afs"
+zone = "YOUR_CLUSTER_ZONE"
+
+[workspace_quota]
+# Client-side reporting caps. Add one entry per workspace you want in
+# `acp quota`; this does not change server-side quota.
+"YOUR_DEFAULT_WORKSPACE" = 40
+
+[dnat]
+# Required only by `cci doctor` unless passed on the command line.
+eip_name = "YOUR_EIP_NAME"
+external_ip = "YOUR_EIP_PUBLIC_IP"
+
+[dnat.port_template]
+# Informational expected external ports, keyed by CCI display_name.
+"YOUR_CCI_DISPLAY_NAME" = 22022
