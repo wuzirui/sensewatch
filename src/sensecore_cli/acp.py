@@ -757,7 +757,7 @@ def plan_submission(
     1. For each cluster, find specs where spec.gpu ≤ requested_gpus AND requested_gpus % spec.gpu == 0.
     2. Filter specs by cpu_per_gpu and mem_per_gpu_gb constraints.
     3. Prefer single-replica (spec.gpu == requested_gpus), then larger gpus_per_replica.
-    4. Within candidates, prefer lightest cpu/mem (per CLAUDE.md).
+    4. Within candidates, prefer the lightest CPU/memory allocation.
     5. Rank clusters by idle-fit; submit to first fit.
     """
     rejection_reasons: list[str] = []
@@ -823,7 +823,7 @@ def read_wandb_api_key_from_netrc(netrc_path: Path | None = None) -> str:
 
 
 def build_env_vars(replicas: int, forward_env: list[str]) -> list[dict[str, str]]:
-    """Build the ACP env payload. Inject NCCL overrides for multi-replica per CLAUDE.md.
+    """Build the ACP env payload and inject NCCL overrides for multi-replica jobs.
 
     Env vars not set in the local shell still appear in the payload with an empty
     value so the display can list them as "requested"; the submission code filters
@@ -873,7 +873,7 @@ def validate_job_name_topology(name: str, gpus: int) -> str | None:
         return None
     return (
         f"job name {name!r} has no topology tag (expected like g{gpus}- or n?x{gpus}-); "
-        "see CLAUDE.md 'Task names must encode real topology'"
+        "job names should encode the real topology"
     )
 
 

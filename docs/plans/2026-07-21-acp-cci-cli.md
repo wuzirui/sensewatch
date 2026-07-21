@@ -354,8 +354,8 @@ Skip this commit when verification requires no tracked changes.
 ### Task 8: Record provenance in the DreamDojo KB
 
 **Files:**
-- Modify: `/Users/wuzirui/dreamdojo_knowledge_base/open-ws/barista.md`
-- Modify: `/Users/wuzirui/dreamdojo_knowledge_base/open-ws/barista.cn.md`
+- Modify: `$DREAMDOJO_KB/open-ws/barista.md`
+- Modify: `$DREAMDOJO_KB/open-ws/barista.cn.md`
 
 **Step 1: Inspect existing user changes**
 

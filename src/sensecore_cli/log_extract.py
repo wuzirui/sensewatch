@@ -2,12 +2,12 @@
 """Extract run logs from SenseCore ACP jobs via `sco cms userlogs query`.
 
 Usage:
-    python tools/sco_extract_logs.py pt-v5ifrf3x
-    python tools/sco_extract_logs.py pt-v5ifrf3x --workspace share-space-01e
-    python tools/sco_extract_logs.py pt-v5ifrf3x --workspace p18-eacv -o /tmp/job.log
-    python tools/sco_extract_logs.py pt-v5ifrf3x --worker 0          # only worker-0
-    python tools/sco_extract_logs.py pt-v5ifrf3x --tail 200          # last 200 lines
-    python tools/sco_extract_logs.py pt-v5ifrf3x --severity ERROR    # only errors
+    acp logs pt-v5ifrf3x
+    acp logs pt-v5ifrf3x --workspace share-space-01e
+    acp logs pt-v5ifrf3x --workspace p18-eacv -o /tmp/job.log
+    acp logs pt-v5ifrf3x --worker 0          # only worker-0
+    acp logs pt-v5ifrf3x --tail 200          # last 200 lines
+    acp logs pt-v5ifrf3x --severity ERROR    # only errors
 """
 
 import argparse
