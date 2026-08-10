@@ -15,6 +15,7 @@ dev = ["pytest>=8"]
 [project.scripts]
 acp = "sensecore_cli.acp:main"
 cci = "sensecore_cli.cci:main"
+htpc-proxy = "sensecore_cli.htpc_proxy:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

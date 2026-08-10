@@ -1,0 +1,28 @@
+# htpc-proxy configuration — copy to ~/.config/dreamdojo/htpc-proxy.toml
+# All keys are optional; defaults are shown below.
+
+[ssh]
+# SSH host to tunnel through. This must be an alias from your ~/.ssh/config,
+# a Tailscale IP (e.g. 100.x.y.z), or a reachable hostname.
+#
+# Example SSH config entry (~/.ssh/config):
+#   Host my-jump
+#       HostName 100.87.155.115    # Tailscale IP of the jump box
+#       User your-username
+#       IdentityFile ~/.ssh/id_ed25519
+host = "my-jump"
+
+# SSH port (usually 22)
+port = 22
+
+[proxy]
+# Local SOCKS5 port. Tool auto-picks the next free port if this is occupied.
+socks_port = 1080
+
+[chrome]
+# Path to Chrome/Chromium binary. Auto-detected on macOS/Linux/Windows if unset.
+# path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+
+# Isolated Chrome profile directory. Keeps cookies/bookmarks separate from
+# your daily Chrome so both can run side by side.
+# user_data_dir = "~/.cache/dreamdojo/htpc-proxy/chrome-profile"
