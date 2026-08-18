@@ -40,8 +40,22 @@ class ConfigLoadingTests(unittest.TestCase):
         self.assertEqual(cfg["defaults"]["workspace"], "p18-eacv")
         self.assertIn("WANDB_API_KEY", cfg["defaults"]["forward_env"])
         self.assertEqual(cfg["afs_mount"]["mount_path"], "/mnt/afs")
-        self.assertEqual(cfg["workspace_quota"]["p18-eacv"], 40)
-        self.assertEqual(cfg["workspace_quota"]["p1-video-world-model-for-robot-learning"], 56)
+        self.assertEqual(cfg["workspace_quota"], {"p18-eacv": 64})
+
+    def test_load_config_migrates_retired_p1_workspace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "acp.toml"
+            path.write_text(
+                '[defaults]\n'
+                'workspace = "p1-video-world-model-for-robot-learning"\n'
+                '[workspace_quota]\n'
+                '"p18-eacv" = 64\n'
+                '"p1-video-world-model-for-robot-learning" = 56\n',
+                encoding="utf-8",
+            )
+            cfg = acp.load_config(path)
+        self.assertEqual(cfg["defaults"]["workspace"], "p18-eacv")
+        self.assertEqual(cfg["workspace_quota"], {"p18-eacv": 64})
 
     def test_load_config_overlays_user_overrides_on_defaults(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -158,6 +172,20 @@ class HMACClientTests(unittest.TestCase):
 
 
 class WorkspaceDiscoveryTests(unittest.TestCase):
+    def test_discover_workspaces_filters_retired_p1_from_fresh_cache(self):
+        cached = [
+            {"name": "p1-video-world-model-for-robot-learning", "clusters": []},
+            {"name": "p18-eacv", "clusters": ["computing-cluster-01e"]},
+            {"name": "share-space-01e", "clusters": ["computing-cluster-01e"]},
+        ]
+        with mock.patch("sensecore_cli.acp.cache_is_fresh", return_value=True), \
+             mock.patch("sensecore_cli.acp.load_cache", return_value=cached):
+            workspaces = acp.discover_workspaces()
+        self.assertEqual(
+            [workspace["name"] for workspace in workspaces],
+            ["p18-eacv", "share-space-01e"],
+        )
+
     def test_parse_sco_ws_list_table_extracts_active_names(self):
         raw = (
             "+---+---+---+---+\n"
@@ -382,6 +410,75 @@ class JobListingTests(unittest.TestCase):
         self.assertEqual([j["id"] for j in jobs], ["pt-old1111", "pt-run2222"])
         self.assertEqual(jobs[1]["state"], "RUNNING")
         self.assertIn("page_token=page-2", client.get.call_args_list[1].args[0])
+
+    def test_hmac_training_jobs_listing_retries_overflow_with_smaller_page(self):
+        client = mock.Mock()
+        client.get.side_effect = [
+            acp.APIError("grpc: received message larger than max"),
+            {"training_jobs": []},
+        ]
+
+        with mock.patch.object(acp, "HMACClient", return_value=client), \
+             mock.patch.object(acp, "_sco_run") as sco_run:
+            jobs = acp.list_jobs_in_workspace("p18-eacv", page_size=500)
+
+        self.assertEqual(jobs, [])
+        self.assertIn("page_size=500", client.get.call_args_list[0].args[0])
+        self.assertIn("page_size=250", client.get.call_args_list[1].args[0])
+        sco_run.assert_not_called()
+
+
+class CommandListServerStateTests(unittest.TestCase):
+    def test_cmd_list_pushes_only_single_effective_state_to_workspace_query(self):
+        cases = [
+            ("default", None, False, "RUNNING"),
+            ("explicit-single", "pending", False, "PENDING"),
+            ("all", None, True, None),
+            ("explicit-multiple", "running,pending", False, None),
+        ]
+
+        for label, state, all_states, expected_server_state in cases:
+            with self.subTest(label=label):
+                args = argparse.Namespace(
+                    workspace="p18-eacv",
+                    all_users=False,
+                    user="L202500193",
+                    page_size=125,
+                    state=state,
+                    all=all_states,
+                    since=None,
+                    experiment=None,
+                    id=None,
+                    json=False,
+                )
+                with mock.patch.object(acp, "load_config", return_value={"identity": {}}), \
+                     mock.patch.object(acp, "HMACClient"), \
+                     mock.patch.object(
+                         acp, "list_jobs_in_workspace", return_value=[]
+                     ) as list_mock:
+                    rc = acp.cmd_list(args)
+
+                self.assertEqual(rc, 0)
+                list_mock.assert_called_once_with(
+                    "p18-eacv",
+                    user_name="L202500193",
+                    state=expected_server_state,
+                    page_size=125,
+                )
+
+    def test_list_parser_accepts_page_size(self):
+        with mock.patch.object(acp, "load_config", return_value={"identity": {}}), \
+             mock.patch.object(acp, "HMACClient"), \
+             mock.patch.object(acp, "list_jobs_in_workspace", return_value=[]) as list_mock:
+            rc = acp.main([
+                "list",
+                "--workspace", "p18-eacv",
+                "--user", "L202500193",
+                "--page-size", "62",
+            ])
+
+        self.assertEqual(rc, 0)
+        self.assertEqual(list_mock.call_args.kwargs["page_size"], 62)
 
 
 class IdentityPersistenceTests(unittest.TestCase):
@@ -810,10 +907,7 @@ class SubmitWorkspaceDefaultTests(unittest.TestCase):
     def _config(self):
         cfg = acp.default_config()
         cfg["defaults"]["workspace"] = "p18-eacv"
-        cfg["workspace_quota"] = {
-            "p18-eacv": 40,
-            "p1-video-world-model-for-robot-learning": 56,
-        }
+        cfg["workspace_quota"] = {"p18-eacv": 64}
         return cfg
 
     def test_submit_uses_config_default_workspace_before_cache_order(self):
@@ -843,9 +937,9 @@ class SubmitWorkspaceDefaultTests(unittest.TestCase):
         output = "".join(call.args[0] + "\n" for call in stdout.write.call_args_list if call.args)
         self.assertIn("workspace=p18-eacv", output)
 
-    def test_submit_explicit_workspace_overrides_config_default(self):
+    def test_submit_explicit_accessible_workspace_overrides_config_default(self):
         workspaces = [
-            {"name": "p1-video-world-model-for-robot-learning", "clusters": ["computing-cluster-01e"]},
+            {"name": "share-space-01e", "clusters": ["computing-cluster-01e"]},
             {"name": "p18-eacv", "clusters": ["computing-cluster-01e"]},
         ]
         catalog = {"computing-cluster-01e": [
@@ -860,11 +954,44 @@ class SubmitWorkspaceDefaultTests(unittest.TestCase):
              mock.patch("sensecore_cli.acp.discover_spec_catalog", return_value=catalog), \
              mock.patch("sensecore_cli.acp.fetch_cluster_usage", return_value=usage), \
              mock.patch("sys.stdout") as stdout:
-            rc = acp.cmd_submit(self._args(workspace="p1-video-world-model-for-robot-learning"))
+            rc = acp.cmd_submit(self._args(workspace="share-space-01e"))
 
         self.assertEqual(rc, 0)
         output = "".join(call.args[0] + "\n" for call in stdout.write.call_args_list if call.args)
-        self.assertIn("workspace=p1-video-world-model-for-robot-learning", output)
+        self.assertIn("workspace=share-space-01e", output)
+
+    def test_submit_rejects_retired_p1_before_discovery(self):
+        workspaces = [
+            {
+                "name": "p1-video-world-model-for-robot-learning",
+                "clusters": ["computing-cluster-01e"],
+            },
+        ]
+        catalog = {"computing-cluster-01e": [
+            {"name": "N6lS.Iu.I10.1.8c128g", "gpu": 1, "cpu": 8, "mem_gb": 128},
+        ]}
+        usage = {"computing-cluster-01e": {"idle_gpu": 8, "idle_cpu": 64, "idle_mem_gb": 1024}}
+
+        with mock.patch("sensecore_cli.acp.load_config", return_value=self._config()), \
+             mock.patch("sensecore_cli.acp.bootstrap_config"), \
+             mock.patch("sensecore_cli.acp.HMACClient", return_value=mock.Mock()) as hmac_client, \
+             mock.patch("sensecore_cli.acp.discover_workspaces", return_value=workspaces), \
+             mock.patch("sensecore_cli.acp.discover_spec_catalog", return_value=catalog), \
+             mock.patch("sensecore_cli.acp.fetch_cluster_usage", return_value=usage), \
+             mock.patch("sys.stderr") as stderr:
+            rc = acp.cmd_submit(
+                self._args(workspace="p1-video-world-model-for-robot-learning")
+            )
+
+        self.assertEqual(rc, 2)
+        hmac_client.assert_not_called()
+        output = "".join(
+            call.args[0] + "\n"
+            for call in stderr.write.call_args_list
+            if call.args
+        )
+        self.assertIn("no longer accessible", output)
+        self.assertIn("p18-eacv", output)
 
 
 class JobNameTopologyWarningTests(unittest.TestCase):
@@ -936,7 +1063,7 @@ class LogsShimTests(unittest.TestCase):
         with mock.patch("sensecore_cli.log_extract.get_job_info", return_value=info), \
              mock.patch("sensecore_cli.log_extract.query_logs_page", side_effect=fake_query_logs_page):
             _, hits = log_extract.extract_logs(
-                workspace="p1-video-world-model-for-robot-learning",
+                workspace="p18-eacv",
                 job_name="pt-demo",
                 tail=2,
             )
@@ -1309,8 +1436,13 @@ class BootstrapConfigQuotaTests(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
         self.assertIn("[workspace_quota]", text)
         self.assertIn('workspace = "p18-eacv"', text)
-        self.assertIn('"p18-eacv" = 40', text)
-        self.assertIn('"p1-video-world-model-for-robot-learning" = 56', text)
+        self.assertIn('"p18-eacv" = 64', text)
+        self.assertNotIn('"p1-video-world-model-for-robot-learning"', text)
+
+
+def test_log_extractor_excludes_retired_p1() -> None:
+    assert "p18-eacv" in log_extract.WORKSPACE_RESOURCE_IDS
+    assert "p1-video-world-model-for-robot-learning" not in log_extract.WORKSPACE_RESOURCE_IDS
 
 
 if __name__ == "__main__":

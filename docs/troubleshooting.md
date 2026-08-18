@@ -30,6 +30,11 @@ retry from the supported network. Existing installed components can still be
 checked with their own `--help` commands. Do not reinstall components inside
 an ACP startup script.
 
+The pinned v1.2.0 compatibility binary uses a historical manifest URL that may
+return HTTP 404. Do not upgrade that installation in place merely to repair the
+manifest lookup: first verify the embedded commands with `sco acp jobs --help`,
+`sco ws instances list --help`, and `sco aec2 clusters usage --help`.
+
 ## HMAC or credential errors
 
 Check presence without revealing values:

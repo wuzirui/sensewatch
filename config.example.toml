@@ -21,7 +21,7 @@ zone = "YOUR_CLUSTER_ZONE"
 [workspace_quota]
 # Client-side reporting caps. Add one entry per workspace you want in
 # `acp quota`; this does not change server-side quota.
-"YOUR_DEFAULT_WORKSPACE" = 40
+"YOUR_DEFAULT_WORKSPACE" = 64
 
 [dnat]
 # Required only by `cci doctor` unless passed on the command line.

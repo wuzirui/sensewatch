@@ -6,6 +6,8 @@ cci {list,status,start,stop,restart,doctor} ...
 
 CCI manages existing debug-container apps. It does not create or delete apps.
 Identity and workspace defaults come from the ACP config and workspace cache.
+If the cache is unavailable, the current fallback contains `p18-eacv` and
+`share-space-01e`; the retired p1 workspace is excluded.
 
 ## App resolution
 

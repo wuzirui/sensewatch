@@ -32,6 +32,11 @@ def test_packaged_cci_has_no_dreamdojo_repo_paths() -> None:
     assert "skills/sensecore-api-workflows" not in source
 
 
+def test_fallback_includes_p18_and_excludes_retired_p1() -> None:
+    assert "p18-eacv" in cci.KNOWN_WORKSPACES
+    assert "p1-video-world-model-for-robot-learning" not in cci.KNOWN_WORKSPACES
+
+
 def test_filter_apps_combines_identity_and_state_filters() -> None:
     apps = [
         _app("app-mine-running", "mine", "RUNNING"),

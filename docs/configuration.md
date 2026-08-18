@@ -10,6 +10,11 @@ CLI flags take precedence over TOML values. Missing TOML fields fall back to
 the package defaults. `acp submit` creates a starter file only when the file is
 absent and never overwrites an existing file.
 
+The bundled DreamDojo policy current on 2026-08-05 defaults to `p18-eacv`
+with a 64-GPU reporting cap. Loading an older config automatically migrates a
+p1 default to p18 and removes the retired p1 quota entry; explicit p1 submits
+are rejected.
+
 ## Complete schema
 
 ```toml

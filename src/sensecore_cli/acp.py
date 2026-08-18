@@ -64,9 +64,9 @@ CACHE_TTL_SEC = 24 * 3600
 # renamed or transient workspaces here; rely on `sco ws` for fresh discovery.
 KNOWN_WORKSPACE_IDS = {
     "p18-eacv": "019ebac3-c824-7701-9031-6d48f581ae12",
-    "p1-video-world-model-for-robot-learning": "019d9523-828e-7198-88c1-fa43e4b13b93",
     "share-space-01e": "01995848-9da4-7b9a-917c-db5bdea185e5",
 }
+RETIRED_WORKSPACES = {"p1-video-world-model-for-robot-learning"}
 
 ACTIVE_STATES = {"RUNNING", "CREATING", "STARTING", "INIT", "PENDING", "QUEUEING", "WAITING"}
 TERMINAL_STATES = {"SUCCEEDED", "FAILED", "DELETED", "DELETING", "SUSPENDED", "STOPPED"}
@@ -125,8 +125,7 @@ def default_config() -> dict[str, Any]:
         # Workspace-level GPU caps. Regular quota is workspace-wide and only
         # RUNNING non-spot ACP jobs / CCI apps count against it.
         "workspace_quota": {
-            "p18-eacv": 40,
-            "p1-video-world-model-for-robot-learning": 56,
+            "p18-eacv": 64,
         },
     }
 
@@ -143,6 +142,12 @@ def load_config(path: Path) -> dict[str, Any]:
             cfg[section].update(values)
         else:
             cfg[section] = values
+    if cfg.get("defaults", {}).get("workspace") in RETIRED_WORKSPACES:
+        cfg["defaults"]["workspace"] = DEFAULT_WORKSPACE
+    quota_caps = cfg.get("workspace_quota")
+    if isinstance(quota_caps, dict):
+        for workspace in RETIRED_WORKSPACES:
+            quota_caps.pop(workspace, None)
     return cfg
 
 
@@ -369,7 +374,11 @@ def discover_workspaces(
     if not force_refresh and cache_is_fresh(cache_path, CACHE_TTL_SEC):
         cached = load_cache(cache_path)
         if cached:
-            return cached
+            return [
+                workspace
+                for workspace in cached
+                if workspace.get("name") not in RETIRED_WORKSPACES
+            ]
 
     try:
         names = _sco_ws_list_names()
@@ -395,6 +404,11 @@ def discover_workspaces(
             {"name": name, "resource_id": rid, "clusters": []}
             for name, rid in KNOWN_WORKSPACE_IDS.items()
         ]
+    workspaces = [
+        workspace
+        for workspace in workspaces
+        if workspace.get("name") not in RETIRED_WORKSPACES
+    ]
     save_cache(cache_path, workspaces)
     return workspaces
 
@@ -951,38 +965,58 @@ def list_jobs_in_workspace(
 ) -> list[dict[str, Any]]:
     """List jobs in a workspace.
 
-    Tries HMAC `trainingJobs` first (supports server-side `user_name` filter so we
-    avoid paging across hundreds of other-user jobs in shared workspaces). Falls
+    Tries HMAC `trainingJobs` first (supports server-side `user_name` and single
+    `state` filters so we avoid paging irrelevant jobs in shared workspaces).
+    A gRPC response overflow restarts the query with half the page size. Falls
     back to `sco acp jobs list -o json` if HMAC is unavailable — that path has no
-    user filter, so the caller must filter client-side.
+    equivalent filters, so the caller must filter client-side.
     """
-    try:
-        client = HMACClient()
-        path = (
-            f"/compute/acp/data/v2/subscriptions/{DEFAULT_SUBSCRIPTION}"
-            f"/resourceGroups/{DEFAULT_RG}/zones/{DEFAULT_WORKSPACE_ZONE}"
-            f"/workspaces/{workspace}/trainingJobs?page_size={page_size}"
-        )
-        if user_name:
-            path += f"&user_name={user_name}"
-        if state:
-            path += f"&state={state}"
-        jobs_raw: list[dict[str, Any]] = []
-        page_token = ""
-        while True:
-            page_path = path
-            if page_token:
-                page_path += f"&page_token={page_token}"
-            payload = client.get(page_path)
-            page_jobs = payload.get("training_jobs") or []
-            jobs_raw.extend(page_jobs)
-            page_token = payload.get("next_page_token") or ""
-            if not page_token or not page_jobs:
-                break
-        return [_normalize_job(j, workspace) for j in jobs_raw]
-    except (APIError, json.JSONDecodeError) as exc:
+    if page_size < 1:
+        raise ValueError("page_size must be at least 1")
+
+    hmac_error: Exception | None = None
+    hmac_page_size = page_size
+    while True:
+        try:
+            client = HMACClient()
+            path = (
+                f"/compute/acp/data/v2/subscriptions/{DEFAULT_SUBSCRIPTION}"
+                f"/resourceGroups/{DEFAULT_RG}/zones/{DEFAULT_WORKSPACE_ZONE}"
+                f"/workspaces/{workspace}/trainingJobs?page_size={hmac_page_size}"
+            )
+            if user_name:
+                path += f"&user_name={user_name}"
+            if state:
+                path += f"&state={state}"
+            jobs_raw: list[dict[str, Any]] = []
+            page_token = ""
+            while True:
+                page_path = path
+                if page_token:
+                    page_path += f"&page_token={page_token}"
+                payload = client.get(page_path)
+                page_jobs = payload.get("training_jobs") or []
+                jobs_raw.extend(page_jobs)
+                page_token = payload.get("next_page_token") or ""
+                if not page_token or not page_jobs:
+                    break
+            return [_normalize_job(j, workspace) for j in jobs_raw]
+        except (APIError, json.JSONDecodeError) as exc:
+            if "larger than max" in str(exc).lower() and hmac_page_size > 1:
+                next_page_size = max(1, hmac_page_size // 2)
+                print(
+                    f"[acp] warning: HMAC page_size={hmac_page_size} too large "
+                    f"(gRPC overflow), retrying with page_size={next_page_size}",
+                    file=sys.stderr,
+                )
+                hmac_page_size = next_page_size
+                continue
+            hmac_error = exc
+            break
+
+    if hmac_error is not None:
         print(f"[acp] warning: HMAC jobs list failed for workspace={workspace}: "
-              f"{_short_api_error(str(exc))}; falling back to sco CLI",
+              f"{_short_api_error(str(hmac_error))}; falling back to sco CLI",
               file=sys.stderr)
 
     try:
@@ -1167,15 +1201,22 @@ def cmd_list(args: argparse.Namespace) -> int:
     # and rely on the client-side filter below.
     server_user = user if user and not re.fullmatch(r"[0-9a-f-]{20,}", user) else None
 
+    states = parse_state_list(args.state) if args.state else (None if args.all else ["RUNNING"])
+    server_state = states[0] if states and len(states) == 1 else None
+
     all_jobs: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=5) as pool:
         for jobs in pool.map(
-            lambda ws: list_jobs_in_workspace(ws["name"], user_name=server_user),
+            lambda ws: list_jobs_in_workspace(
+                ws["name"],
+                user_name=server_user,
+                state=server_state,
+                page_size=args.page_size,
+            ),
             workspaces,
         ):
             all_jobs.extend(jobs)
 
-    states = parse_state_list(args.state) if args.state else (None if args.all else ["RUNNING"])
     since_sec = parse_since(args.since) if args.since else None
     filtered = filter_jobs(
         all_jobs,
@@ -1615,6 +1656,14 @@ def cmd_switch(args: argparse.Namespace) -> int:
 def cmd_submit(args: argparse.Namespace) -> int:
     cfg = load_config(CONFIG_PATH)
     bootstrap_config(CONFIG_PATH)
+    requested_workspace = (args.workspace or cfg["defaults"].get("workspace") or "").strip()
+    if requested_workspace in RETIRED_WORKSPACES:
+        print(
+            f"[acp submit] error: workspace {requested_workspace} is no longer accessible; "
+            f"use {DEFAULT_WORKSPACE}",
+            file=sys.stderr,
+        )
+        return 2
 
     # Preflight: pip-install scan on referenced .sh
     warnings = preflight_check_command(args.command)
@@ -1630,7 +1679,6 @@ def cmd_submit(args: argparse.Namespace) -> int:
 
     client = HMACClient()
     workspaces = discover_workspaces(client)
-    requested_workspace = (args.workspace or cfg["defaults"].get("workspace") or "").strip()
     if requested_workspace:
         workspaces = filter_requested_workspace(
             workspaces,
@@ -1964,6 +2012,10 @@ def main(argv: list[str] | None = None) -> int:
                                        "(default: [identity] user_name from config)")
     p_list.add_argument("--all-users", action="store_true",
                         help="include jobs from all users (disable identity filter)")
+    p_list.add_argument(
+        "--page-size", type=int, default=500,
+        help="page size for API calls (automatically reduced on gRPC overflow)",
+    )
     p_list.add_argument("--json", action="store_true", help="machine-readable output")
     p_list.set_defaults(handler=cmd_list)
 

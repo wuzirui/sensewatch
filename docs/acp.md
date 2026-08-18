@@ -41,6 +41,10 @@ The planner:
    `NCCL_SOCKET_TIMEOUT=3600000` when more than one replica is required.
 7. Forwards only configured environment variables that have non-empty values.
 
+For the bundled DreamDojo policy, `p18-eacv` is the default current workspace
+and `p1-video-world-model-for-robot-learning` is retired. Passing the retired
+workspace to `submit` exits with code 2 before discovery or job creation.
+
 Job names should contain a topology tag such as `g8` or `n2x8`. A missing tag
 warns but does not block submission.
 
@@ -63,7 +67,7 @@ forwarded variable names, and NCCL injection before a real submission.
 ```bash
 acp list [--all] [--state RUNNING,PENDING] [--experiment TEXT] \
   [--since 6h|2d|1w] [--id pt-ID] [--workspace WORKSPACE] \
-  [--user NAME_OR_UUID | --all-users] [--json]
+  [--user NAME_OR_UUID | --all-users] [--page-size N] [--json]
 ```
 
 Defaults are RUNNING jobs owned by `[identity]`, queried across linked
@@ -79,6 +83,13 @@ acp list --workspace team-workspace --json
 
 `--id` is an exact lookup and prints a verbose one-job view. `--json` is the
 stable choice for downstream scripting.
+
+The default RUNNING state and an explicit single `--state` are sent to the
+HMAC service together with a non-UUID owner name. Multiple states and `--all`
+are filtered locally because the service accepts only one state. The default
+page size is 500; if a response exceeds the gRPC message limit, ACP restarts
+the query at half the page size until it succeeds. `--page-size` sets the
+initial value manually.
 
 ## `stop`
 

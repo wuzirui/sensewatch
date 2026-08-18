@@ -23,7 +23,6 @@ SCO = os.path.expanduser("~/.sco/bin/sco")
 WORKSPACE_RESOURCE_IDS = {
     "share-space-01e": "01995848-9da4-7b9a-917c-db5bdea185e5",
     "p18-eacv": "019ebac3-c824-7701-9031-6d48f581ae12",
-    "p1-video-world-model-for-robot-learning": "019d9523-828e-7198-88c1-fa43e4b13b93",
 }
 
 PRODUCT = "product.lepton-acp-new"

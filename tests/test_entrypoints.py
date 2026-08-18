@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_public_modules_import() -> None:
     assert import_module("sensecore_cli.acp")
     assert import_module("sensecore_cli.cci")
+    assert import_module("sensecore_cli.htpc_proxy")
 
 
 @pytest.mark.parametrize(

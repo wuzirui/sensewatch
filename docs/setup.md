@@ -11,7 +11,9 @@
 The HMAC helper reads the AccessKey pair from macOS Keychain. The `sco` CLI
 also needs the same pair in its own local profile.
 
-## 2. Install the official `sco` CLI
+## 2. Install a compatible `sco` CLI
+
+### Current official installer
 
 The current installer is served by SenseCore and supports macOS Intel and
 Apple Silicon:
@@ -49,6 +51,34 @@ If an installed component is old, update installed components with:
 ```bash
 sco components upgrade
 ```
+
+### Separately supplied v1.2.0 compatibility bundle
+
+The current official release may perform stricter subscription/IAM validation
+or expose a different command surface than the ACP/WS/AEC2 workflow documented
+here. If that occurs, use the separately supplied
+`sco-v1.2.0-darwin-arm64-compat-20260818.tar.gz` on an Apple Silicon Mac. The
+archive is deliberately not stored in this Git repository.
+
+```bash
+tar -xzf sco-v1.2.0-darwin-arm64-compat-20260818.tar.gz
+cd sco-v1.2.0-darwin-arm64-compat-20260818
+shasum -a 256 -c SHA256SUMS
+./install.sh
+export PATH="$HOME/.sco/bin:$PATH"
+sco version
+```
+
+The expected archive SHA-256 is
+`85dc9efc93372176c32afd517793874d0acd6cfaecd3a6bdf60fbbd33f556241`.
+The installer refuses to overwrite an existing binary; `./install.sh --force`
+retains a timestamped backup before replacing it.
+
+This compatibility binary already embeds the command surfaces used here. Do
+not run `sco components install` or `sco components upgrade` on the pinned
+installation unless you intentionally want to replace it. Its historical
+component-registry URL may return HTTP 404 even though the embedded commands
+continue to work.
 
 ## 3. Store credentials in Keychain
 
@@ -126,11 +156,12 @@ source .venv/bin/activate
 python3 -m pip install -e .
 ```
 
-Verify both entry points:
+Verify all entry points:
 
 ```bash
 acp --help
 cci --help
+htpc-proxy --help
 ```
 
 ## 6. Create local configuration

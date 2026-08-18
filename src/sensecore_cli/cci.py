@@ -46,7 +46,7 @@ WS_ZONE = "cn-sh-01z"
 ACP_CACHE_DIR = Path.home() / ".cache" / "dreamdojo" / "acp"
 ACP_CONFIG_PATH = Path.home() / ".config" / "dreamdojo" / "acp.toml"
 
-KNOWN_WORKSPACES = ["share-space-01e", "p1-video-world-model-for-robot-learning"]
+KNOWN_WORKSPACES = ["p18-eacv", "share-space-01e"]
 ACTIVE_STATES = {"RUNNING", "STARTING", "PROGRESSING", "INIT", "PENDING", "CREATING"}
 INACTIVE_STATES = {"SUSPENDED", "STOPPED", "FAILED"}
 
